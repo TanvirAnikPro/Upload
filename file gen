@@ -1,0 +1,46 @@
+using System;
+using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Threading.Tasks;
+
+public class BinaryFileUploader
+{
+    public async Task UploadFileAsBinary(string fileName, string targetUrl)
+    {
+        // Get the full path of the file in the same directory
+        var filePath = Path.Combine(AppContext.BaseDirectory, fileName);
+
+        if (!File.Exists(filePath))
+        {
+            Console.WriteLine($"File not found: {filePath}");
+            return;
+        }
+
+        using var client = new HttpClient();
+
+        // Read the file as a byte array
+        var fileBytes = await File.ReadAllBytesAsync(filePath);
+
+        // Create ByteArrayContent with the binary data
+        var content = new ByteArrayContent(fileBytes);
+
+        // Set Content-Type header (optional, depending on the server requirements)
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+
+        // Add any custom headers if needed
+        client.DefaultRequestHeaders.Add("Custom-Header", "HeaderValue");
+
+        // Send PUT request
+        var response = await client.PutAsync(targetUrl, content);
+
+        if (response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("File uploaded successfully.");
+        }
+        else
+        {
+            Console.WriteLine($"Error {response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        }
+    }
+}
