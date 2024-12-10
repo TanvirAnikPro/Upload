@@ -1,0 +1,55 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading.Tasks;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add HttpClient service
+builder.Services.AddHttpClient();
+
+var app = builder.Build();
+
+app.MapPost("/forward-request", async (HttpRequest request, IHttpClientFactory httpClientFactory) =>
+{
+    var client = httpClientFactory.CreateClient();
+
+    // Target URL to forward the request
+    var targetUrl = "https://api.example.com/endpoint"; // Replace with the actual URL
+    var token = "your-bearer-token-here"; // Replace with your token source
+
+    // Prepare the x-www-form-urlencoded body
+    var body = new[]
+    {
+        new KeyValuePair<string, string>("key1", "value1"),
+        new KeyValuePair<string, string>("key2", "value2"),
+    };
+
+    var content = new FormUrlEncodedContent(body);
+
+    // Prepare the HTTP request
+    var requestMessage = new HttpRequestMessage(HttpMethod.Post, targetUrl)
+    {
+        Content = content
+    };
+
+    // Add headers
+    requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); // Custom authorization header
+    requestMessage.Headers.Add("Custom-Header", "HeaderValue"); // Add any additional custom headers if needed
+
+    // Send the request
+    var response = await client.SendAsync(requestMessage);
+
+    // Read the response
+    var responseContent = await response.Content.ReadAsStringAsync();
+
+    // Return the response to the client
+    return response.IsSuccessStatusCode
+        ? Results.Ok(responseContent)
+        : Results.StatusCode((int)response.StatusCode, responseContent);
+});
+
+app.Run();
