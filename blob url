@@ -1,0 +1,54 @@
+using System;
+using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Threading.Tasks;
+
+public class AzureBlobUploader
+{
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    public AzureBlobUploader(IHttpClientFactory httpClientFactory)
+    {
+        _httpClientFactory = httpClientFactory;
+    }
+
+    public async Task UploadFileToBlobAsync(string filePath, string blobUrl)
+    {
+        if (!File.Exists(filePath))
+        {
+            Console.WriteLine($"File not found: {filePath}");
+            return;
+        }
+
+        var client = _httpClientFactory.CreateClient();
+
+        try
+        {
+            // Read the file as a byte array
+            byte[] fileData = await File.ReadAllBytesAsync(filePath);
+
+            // Create an HttpContent object with the file data
+            using var content = new ByteArrayContent(fileData);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+
+            // Send the PUT request
+            var response = await client.PutAsync(blobUrl, content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("File uploaded successfully.");
+            }
+            else
+            {
+                Console.WriteLine($"Upload failed with status code: {response.StatusCode}");
+                var errorResponse = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error: {errorResponse}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred while uploading the file: {ex.Message}");
+        }
+    }
+}
