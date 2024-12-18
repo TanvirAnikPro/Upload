@@ -1,0 +1,35 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
+public class JsonManipulation
+{
+    public static string RemoveNestedKey(string json, string[] keyChain)
+    {
+        // Parse the JSON string into a JsonNode
+        JsonNode? jsonNode = JsonNode.Parse(json);
+        if (jsonNode == null || keyChain.Length == 0) return json;
+
+        // Navigate through the JSON structure using the key chain
+        JsonNode? currentNode = jsonNode;
+        for (int i = 0; i < keyChain.Length - 1; i++)
+        {
+            if (currentNode is JsonObject jsonObject && jsonObject.ContainsKey(keyChain[i]))
+            {
+                currentNode = jsonObject[keyChain[i]];
+            }
+            else
+            {
+                return json; // Return the original JSON if any part of the chain is missing
+            }
+        }
+
+        // Remove the final key in the chain
+        if (currentNode is JsonObject finalObject)
+        {
+            finalObject.Remove(keyChain[^1]); // Remove the last key
+        }
+
+        // Serialize back to JSON and return
+        return jsonNode.ToJsonString();
+    }
+}
