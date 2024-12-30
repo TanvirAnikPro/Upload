@@ -1,64 +1,56 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using System.IO;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Threading.Tasks;
+using OpenTelemetry;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Logs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add HttpClient service
-builder.Services.AddHttpClient();
+// Configure OpenTelemetry
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracerProviderBuilder =>
+    {
+        tracerProviderBuilder
+            .SetResourceBuilder(ResourceBuilder.CreateDefault()
+                .AddService("MyDotNetApp", serviceVersion: "1.0.0")
+                .AddAttributes(new[] {
+                    new KeyValuePair<string, object>("deployment.environment", "production")
+                }))
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddSqlClientInstrumentation()
+            .AddOtlpExporter(o =>
+            {
+                o.Endpoint = new Uri("https://7ebab4f8cf494df4bdb5774a8c33d356.apm.us-central1.gcp.cloud.es.io:443");
+                o.Headers = "Authorization=Bearer HOck0wh231OOCa9MjU";
+            });
+    })
+    .WithMetrics(metricsProviderBuilder =>
+    {
+        metricsProviderBuilder
+            .SetResourceBuilder(ResourceBuilder.CreateDefault()
+                .AddService("MyDotNetApp", serviceVersion: "1.0.0"))
+            .AddAspNetCoreInstrumentation()
+            .AddOtlpExporter(o =>
+            {
+                o.Endpoint = new Uri("https://7ebab4f8cf494df4bdb5774a8c33d356.apm.us-central1.gcp.cloud.es.io:443");
+                o.Headers = "Authorization=Bearer HOck0wh231OOCa9MjU";
+            });
+    });
+
+builder.Logging.AddOpenTelemetry(loggingBuilder =>
+{
+    loggingBuilder.IncludeFormattedMessage = true;
+    loggingBuilder.ParseStateValues = true;
+    loggingBuilder.AddOtlpExporter(o =>
+    {
+        o.Endpoint = new Uri("https://7ebab4f8cf494df4bdb5774a8c33d356.apm.us-central1.gcp.cloud.es.io:443");
+        o.Headers = "Authorization=Bearer HOck0wh231OOCa9MjU";
+    });
+});
 
 var app = builder.Build();
 
-app.MapPost("/upload", async (HttpRequest request, IHttpClientFactory httpClientFactory) =>
-{
-    // Check if the request contains a file
-    if (!request.HasFormContentType)
-    {
-        return Results.BadRequest("The request content type must be 'multipart/form-data'.");
-    }
-
-    var form = await request.ReadFormAsync();
-    var file = form.Files["file"]; // Expecting a file with the key "file"
-
-    if (file == null || file.Length == 0)
-    {
-        return Results.BadRequest("No file uploaded or the file is empty.");
-    }
-
-    // Prepare the file for forwarding
-    var httpClient = httpClientFactory.CreateClient();
-    var targetUrl = "https://api.example.com/endpoint"; // Replace with your target endpoint
-    var token = "your-bearer-token-here"; // Replace with your bearer token source
-
-    using (var content = new StreamContent(file.OpenReadStream()))
-    {
-        content.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType ?? "application/octet-stream");
-
-        // Add authentication and other headers
-        var requestMessage = new HttpRequestMessage(HttpMethod.Put, targetUrl)
-        {
-            Content = content
-        };
-        requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        requestMessage.Headers.Add("Custom-Header", "HeaderValue"); // Add any custom headers
-
-        // Send the PUT request
-        var response = await httpClient.SendAsync(requestMessage);
-
-        if (response.IsSuccessStatusCode)
-        {
-            return Results.Ok("File forwarded successfully.");
-        }
-        else
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            return Results.StatusCode((int)response.StatusCode, $"Error: {errorContent}");
-        }
-    }
-});
+app.MapGet("/", () => "Hello, OpenTelemetry!");
 
 app.Run();
